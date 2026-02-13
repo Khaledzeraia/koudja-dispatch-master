@@ -5,7 +5,9 @@ import { Share2, LayoutGrid, Users } from 'lucide-react';
 import { DateNavigation } from '@/components/koudja/DateNavigation';
 import { DistributionBoard } from '@/components/koudja/DistributionBoard';
 import { PersonnelSection } from '@/components/koudja/PersonnelSection';
-import { Person, VehicleConfig, VehicleId, DEFAULT_VEHICLE_CONFIGS } from '@/lib/types';
+import { PersonnelDialog } from '@/components/koudja/PersonnelDialog';
+import { DeleteConfirmDialog } from '@/components/koudja/DeleteConfirmDialog';
+import { Person, Rank, VehicleConfig, VehicleId, DEFAULT_VEHICLE_CONFIGS } from '@/lib/types';
 import { getDefaultPersonnel } from '@/lib/data';
 import { getPlatoonForDate, distribute, getReserve, formatForWhatsApp } from '@/lib/rotation';
 
@@ -26,6 +28,12 @@ const Index = () => {
   const [vehicleConfigs, setVehicleConfigs] = useState<VehicleConfig[]>(() =>
     loadFromStorage('koudja-vehicles', () => DEFAULT_VEHICLE_CONFIGS)
   );
+
+  // Dialog state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingPerson, setDeletingPerson] = useState<Person | null>(null);
 
   // Persist to localStorage
   useEffect(() => {
@@ -75,6 +83,85 @@ const Index = () => {
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   }, [selectedDate, currentPlatoon, assignments, vehicleConfigs, reserve]);
+
+  // CRUD handlers
+  const handleAddClick = useCallback(() => {
+    setEditingPerson(null);
+    setDialogOpen(true);
+  }, []);
+
+  const handleEditClick = useCallback((person: Person) => {
+    setEditingPerson(person);
+    setDialogOpen(true);
+  }, []);
+
+  const handleDeleteClick = useCallback((person: Person) => {
+    setDeletingPerson(person);
+    setDeleteDialogOpen(true);
+  }, []);
+
+  const handleSavePerson = useCallback(
+    (data: Omit<Person, 'id' | 'priority'> & { id?: string }) => {
+      setPersonnel(prev => {
+        if (data.id) {
+          // Edit existing
+          return prev.map(p =>
+            p.id === data.id
+              ? { ...p, name: data.name, rank: data.rank, isPresent: data.isPresent }
+              : p
+          );
+        } else {
+          // Add new
+          const samePlatoon = prev.filter(p => p.platoon === data.platoon);
+          const maxPriority = samePlatoon.reduce((max, p) => Math.max(max, p.priority), -1);
+          const newPerson: Person = {
+            id: `${data.platoon}-${data.rank}-${Date.now()}`,
+            name: data.name,
+            rank: data.rank,
+            platoon: data.platoon,
+            isPresent: data.isPresent,
+            priority: maxPriority + 1,
+          };
+          return [...prev, newPerson];
+        }
+      });
+    },
+    []
+  );
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (deletingPerson) {
+      setPersonnel(prev => prev.filter(p => p.id !== deletingPerson.id));
+      setDeletingPerson(null);
+      setDeleteDialogOpen(false);
+    }
+  }, [deletingPerson]);
+
+  const handleReorder = useCallback(
+    (rank: Rank, oldIndex: number, newIndex: number) => {
+      setPersonnel(prev => {
+        const platoon = currentPlatoon;
+        // Get the sorted rank group for this platoon
+        const rankGroup = prev
+          .filter(p => p.platoon === platoon && p.rank === rank)
+          .sort((a, b) => a.priority - b.priority);
+
+        // Reorder within the group
+        const reordered = [...rankGroup];
+        const [moved] = reordered.splice(oldIndex, 1);
+        reordered.splice(newIndex, 0, moved);
+
+        // Reassign priorities
+        const priorityMap = new Map<string, number>();
+        reordered.forEach((p, i) => priorityMap.set(p.id, i));
+
+        return prev.map(p =>
+          priorityMap.has(p.id) ? { ...p, priority: priorityMap.get(p.id)! } : p
+        );
+      });
+    },
+    [currentPlatoon]
+  );
 
   return (
     <div className="min-h-screen bg-background flex flex-col max-w-2xl mx-auto">
@@ -129,9 +216,28 @@ const Index = () => {
           <PersonnelSection
             personnel={platoonPersonnel}
             onTogglePresence={handleTogglePresence}
+            onReorder={handleReorder}
+            onAdd={handleAddClick}
+            onEdit={handleEditClick}
+            onDelete={handleDeleteClick}
           />
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <PersonnelDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        person={editingPerson}
+        currentPlatoon={currentPlatoon}
+        onSave={handleSavePerson}
+      />
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        person={deletingPerson}
+        onConfirm={handleDeleteConfirm}
+      />
 
       {/* Watermark */}
       <div className="watermark">KOUDJA</div>
