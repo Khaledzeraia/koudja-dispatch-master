@@ -105,7 +105,7 @@ function SortablePersonCard({
       <Switch
         checked={person.isPresent}
         onCheckedChange={onToggle}
-        className="scale-[0.7] mr-1"
+        className="scale-[0.7] ms-1"
       />
     </div>
   );
