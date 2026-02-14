@@ -104,12 +104,95 @@ export function getReserve(
   return personnel.filter(p => p.isPresent && !assignedIds.has(p.id));
 }
 
+// ─── Guard Schedule (6 periods, 08:00–20:00) ───
+
+export interface GuardPeriod {
+  label: string;
+  startHour: number;
+  endHour: number;
+  isCritical: boolean;
+}
+
+export interface GuardSlot {
+  period: GuardPeriod;
+  personnel: Person[];
+}
+
+export const GUARD_PERIODS: GuardPeriod[] = [
+  { label: '08:00 - 10:00', startHour: 8, endHour: 10, isCritical: true },
+  { label: '10:00 - 12:00', startHour: 10, endHour: 12, isCritical: false },
+  { label: '12:00 - 14:00', startHour: 12, endHour: 14, isCritical: false },
+  { label: '14:00 - 16:00', startHour: 14, endHour: 16, isCritical: false },
+  { label: '16:00 - 18:00', startHour: 16, endHour: 18, isCritical: false },
+  { label: '18:00 - 20:00', startHour: 18, endHour: 20, isCritical: true },
+];
+
+/**
+ * Generates a guard duty schedule for the given date.
+ * - Agents rotate every 3 days based on date offset from REFERENCE_DATE.
+ * - If not enough agents, corporals fill ONLY critical periods (08-10, 18-20).
+ * - Each period gets 2 personnel (adjustable based on available count).
+ */
+export function generateGuardSchedule(
+  date: Date,
+  reserve: Person[]
+): GuardSlot[] {
+  // Separate agents and corporals from reserve
+  const agents = reserve.filter(p => p.rank === 'agent');
+  const corporals = reserve.filter(p => p.rank === 'corporal');
+
+  // Calculate rotation offset: shifts every 3 days
+  const daysSinceRef = Math.abs(differenceInCalendarDays(date, REFERENCE_DATE));
+  const rotationCycle = Math.floor(daysSinceRef / 3);
+
+  // Rotate agents list based on cycle
+  const rotatedAgents = rotateArray(agents, rotationCycle);
+
+  const totalPeriods = GUARD_PERIODS.length;
+  // Determine personnel per period (at least 1 if we have anyone)
+  const personnelPerPeriod = Math.max(1, Math.min(2, Math.ceil(rotatedAgents.length / totalPeriods)));
+
+  // Assign agents to periods round-robin style
+  let agentIndex = 0;
+  const slots: GuardSlot[] = GUARD_PERIODS.map(period => {
+    const assigned: Person[] = [];
+    for (let i = 0; i < personnelPerPeriod && agentIndex < rotatedAgents.length; i++) {
+      assigned.push(rotatedAgents[agentIndex++]);
+    }
+    return { period, personnel: assigned };
+  });
+
+  // If shortage: fill empty/short critical periods with corporals
+  if (corporals.length > 0) {
+    const rotatedCorporals = rotateArray(corporals, rotationCycle);
+    let corpIndex = 0;
+
+    for (const slot of slots) {
+      if (slot.period.isCritical && slot.personnel.length < personnelPerPeriod && corpIndex < rotatedCorporals.length) {
+        const needed = personnelPerPeriod - slot.personnel.length;
+        for (let i = 0; i < needed && corpIndex < rotatedCorporals.length; i++) {
+          slot.personnel.push(rotatedCorporals[corpIndex++]);
+        }
+      }
+    }
+  }
+
+  return slots;
+}
+
+function rotateArray<T>(arr: T[], offset: number): T[] {
+  if (arr.length === 0) return [];
+  const n = offset % arr.length;
+  return [...arr.slice(n), ...arr.slice(0, n)];
+}
+
 export function formatForWhatsApp(
   date: Date,
   platoon: Platoon,
   assignments: Record<VehicleId, Person[]>,
   configs: VehicleConfig[],
-  reserve: Person[]
+  reserve: Person[],
+  guardSchedule?: GuardSlot[]
 ): string {
   const dateStr = format(date, 'yyyy/MM/dd');
   let text = `📋 توزيع حراسة يوم ${dateStr}\n`;
@@ -132,6 +215,17 @@ export function formatForWhatsApp(
     text += `🔄 الاحتياط:\n`;
     for (const p of reserve) {
       text += `  • ${RANK_LABELS[p.rank]}: ${p.name}\n`;
+    }
+    text += '\n';
+  }
+
+  if (guardSchedule && guardSchedule.length > 0) {
+    text += `${'─'.repeat(20)}\n`;
+    text += `🕐 جدول الحراسة الدورية:\n\n`;
+    for (const slot of guardSchedule) {
+      const names = slot.personnel.map(p => `${RANK_LABELS[p.rank]}: ${p.name}`).join(' / ');
+      const marker = slot.period.isCritical ? '⚠️' : '🟢';
+      text += `${marker} ${slot.period.label} → ${names || 'لا أحد'}\n`;
     }
     text += '\n';
   }

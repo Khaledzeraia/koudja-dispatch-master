@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Share2, LayoutGrid, Users } from 'lucide-react';
+import { Share2, LayoutGrid, Users, Clock } from 'lucide-react';
 import { DateNavigation } from '@/components/koudja/DateNavigation';
 import { DistributionBoard } from '@/components/koudja/DistributionBoard';
 import { PersonnelSection } from '@/components/koudja/PersonnelSection';
 import { PersonnelDialog } from '@/components/koudja/PersonnelDialog';
 import { DeleteConfirmDialog } from '@/components/koudja/DeleteConfirmDialog';
+import { GuardSchedule } from '@/components/koudja/GuardSchedule';
 import { Person, Rank, VehicleConfig, VehicleId, DEFAULT_VEHICLE_CONFIGS } from '@/lib/types';
 import { getDefaultPersonnel } from '@/lib/data';
-import { getPlatoonForDate, distribute, getReserve, formatForWhatsApp } from '@/lib/rotation';
+import { getPlatoonForDate, distribute, getReserve, formatForWhatsApp, generateGuardSchedule } from '@/lib/rotation';
 
 function loadFromStorage<T>(key: string, fallback: () => T): T {
   try {
@@ -58,6 +59,10 @@ const Index = () => {
     () => getReserve(platoonPersonnel, assignments),
     [platoonPersonnel, assignments]
   );
+  const guardSchedule = useMemo(
+    () => generateGuardSchedule(selectedDate, reserve),
+    [selectedDate, reserve]
+  );
 
   // Handlers
   const handleTogglePresence = useCallback((id: string) => {
@@ -79,10 +84,10 @@ const Index = () => {
   }, []);
 
   const handleWhatsAppShare = useCallback(() => {
-    const text = formatForWhatsApp(selectedDate, currentPlatoon, assignments, vehicleConfigs, reserve);
+    const text = formatForWhatsApp(selectedDate, currentPlatoon, assignments, vehicleConfigs, reserve, guardSchedule);
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
-  }, [selectedDate, currentPlatoon, assignments, vehicleConfigs, reserve]);
+  }, [selectedDate, currentPlatoon, assignments, vehicleConfigs, reserve, guardSchedule]);
 
   // CRUD handlers
   const handleAddClick = useCallback(() => {
@@ -185,13 +190,20 @@ const Index = () => {
 
       {/* Main Content */}
       <Tabs defaultValue="distribution" className="flex-1 flex flex-col">
-        <TabsList className="grid grid-cols-2 mx-3 mt-3 bg-secondary/50 border border-border">
+        <TabsList className="grid grid-cols-3 mx-3 mt-3 bg-secondary/50 border border-border">
           <TabsTrigger
             value="distribution"
             className="text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
           >
             <LayoutGrid className="h-3.5 w-3.5" />
             التوزيع
+          </TabsTrigger>
+          <TabsTrigger
+            value="guard-schedule"
+            className="text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+          >
+            <Clock className="h-3.5 w-3.5" />
+            الدوريات
           </TabsTrigger>
           <TabsTrigger
             value="personnel"
@@ -210,6 +222,10 @@ const Index = () => {
             onToggleActive={handleToggleVehicleActive}
             onUpdateConfig={handleUpdateVehicleConfig}
           />
+        </TabsContent>
+
+        <TabsContent value="guard-schedule" className="flex-1 mt-0">
+          <GuardSchedule slots={guardSchedule} />
         </TabsContent>
 
         <TabsContent value="personnel" className="flex-1 mt-0">
