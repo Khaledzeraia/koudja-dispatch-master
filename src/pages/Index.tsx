@@ -189,8 +189,15 @@ const Index = () => {
       <DateNavigation selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
       {/* Main Content */}
-      <Tabs defaultValue="distribution" className="flex-1 flex flex-col">
+      <Tabs defaultValue="personnel" className="flex-1 flex flex-col">
         <TabsList className="grid grid-cols-3 mx-3 mt-3 bg-secondary/50 border border-border">
+          <TabsTrigger
+            value="personnel"
+            className="text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
+          >
+            <Users className="h-3.5 w-3.5" />
+            الأفراد
+          </TabsTrigger>
           <TabsTrigger
             value="distribution"
             className="text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
@@ -203,14 +210,7 @@ const Index = () => {
             className="text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
           >
             <Clock className="h-3.5 w-3.5" />
-            الدوريات
-          </TabsTrigger>
-          <TabsTrigger
-            value="personnel"
-            className="text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground gap-1.5"
-          >
-            <Users className="h-3.5 w-3.5" />
-            الأفراد
+            الحراسة
           </TabsTrigger>
         </TabsList>
 
