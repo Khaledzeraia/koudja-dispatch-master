@@ -55,13 +55,17 @@ const Index = () => {
     () => distribute(platoonPersonnel, vehicleConfigs, selectedDate),
     [platoonPersonnel, vehicleConfigs, selectedDate]
   );
+  const assignedToVehicles = useMemo(
+    () => new Set(Object.values(assignments).flat().map(p => p.id)),
+    [assignments]
+  );
   const reserve = useMemo(
     () => getReserve(platoonPersonnel, assignments),
     [platoonPersonnel, assignments]
   );
   const guardSchedule = useMemo(
-    () => generateGuardSchedule(selectedDate, reserve),
-    [selectedDate, reserve]
+    () => generateGuardSchedule(selectedDate, platoonPersonnel, assignedToVehicles),
+    [selectedDate, platoonPersonnel, assignedToVehicles]
   );
 
   // Handlers
