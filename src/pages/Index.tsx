@@ -52,8 +52,8 @@ const Index = () => {
     [personnel, currentPlatoon]
   );
   const assignments = useMemo(
-    () => distribute(platoonPersonnel, vehicleConfigs),
-    [platoonPersonnel, vehicleConfigs]
+    () => distribute(platoonPersonnel, vehicleConfigs, selectedDate),
+    [platoonPersonnel, vehicleConfigs, selectedDate]
   );
   const reserve = useMemo(
     () => getReserve(platoonPersonnel, assignments),

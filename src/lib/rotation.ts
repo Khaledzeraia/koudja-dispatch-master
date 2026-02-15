@@ -13,11 +13,16 @@ export function getPlatoonForDate(date: Date): Platoon {
 
 export function distribute(
   personnel: Person[],
-  configs: VehicleConfig[]
+  configs: VehicleConfig[],
+  date: Date = new Date()
 ): Record<VehicleId, Person[]> {
   const present = personnel
     .filter(p => p.isPresent)
     .sort((a, b) => a.priority - b.priority);
+
+  // Calculate rotation cycle: shifts every 3 days for fair distribution
+  const daysSinceRef = Math.abs(differenceInCalendarDays(date, REFERENCE_DATE));
+  const rotationCycle = Math.floor(daysSinceRef / 3);
 
   const byRank: Record<Rank, Person[]> = {
     lieutenant: [],
@@ -30,6 +35,11 @@ export function distribute(
 
   for (const p of present) {
     byRank[p.rank].push(p);
+  }
+
+  // Rotate each rank group for fair distribution across cycles
+  for (const rank of Object.keys(byRank) as Rank[]) {
+    byRank[rank] = rotateArray(byRank[rank], rotationCycle);
   }
 
   const assignments: Record<string, Person[]> = {};
