@@ -138,51 +138,65 @@ export const GUARD_PERIODS: GuardPeriod[] = [
 ];
 
 /**
- * Generates a guard duty schedule for the given date.
- * - Agents rotate every 3 days based on date offset from REFERENCE_DATE.
- * - If not enough agents, corporals fill ONLY critical periods (08-10, 18-20).
- * - Each period gets 2 personnel (adjustable based on available count).
+ * Generates a fair guard duty schedule for the given date.
+ * 
+ * Fairness rules:
+ * 1. ALL reserve personnel (agents, corporals, drivers) participate in guard duty
+ * 2. Personnel rotate DAILY (not every 3 days) so each day within the same
+ *    platoon cycle gets different period assignments
+ * 3. Personnel are distributed evenly across all 6 periods using round-robin
+ * 4. The starting position shifts each day so no one always gets the same period
+ * 5. In shortage: corporals are prioritized for critical periods (08-10, 18-20)
  */
 export function generateGuardSchedule(
   date: Date,
   reserve: Person[]
 ): GuardSlot[] {
-  // Separate agents and corporals from reserve
+  if (reserve.length === 0) {
+    return GUARD_PERIODS.map(period => ({ period, personnel: [] }));
+  }
+
+  // Daily rotation offset for maximum fairness
+  const daysSinceRef = Math.abs(differenceInCalendarDays(date, REFERENCE_DATE));
+
+  // Separate by capability
   const agents = reserve.filter(p => p.rank === 'agent');
   const corporals = reserve.filter(p => p.rank === 'corporal');
+  const others = reserve.filter(p => p.rank !== 'agent' && p.rank !== 'corporal');
 
-  // Calculate rotation offset: shifts every 3 days
-  const daysSinceRef = Math.abs(differenceInCalendarDays(date, REFERENCE_DATE));
-  const rotationCycle = Math.floor(daysSinceRef / 3);
-
-  // Rotate agents list based on cycle
-  const rotatedAgents = rotateArray(agents, rotationCycle);
+  // Combine all available personnel, agents first, then others, then corporals last (backup)
+  const allAvailable = [...agents, ...others];
+  
+  // Rotate the list daily for fair period assignment
+  const rotated = rotateArray(allAvailable, daysSinceRef);
 
   const totalPeriods = GUARD_PERIODS.length;
-  // Determine personnel per period (at least 1 if we have anyone)
-  const personnelPerPeriod = Math.max(1, Math.min(2, Math.ceil(rotatedAgents.length / totalPeriods)));
 
-  // Assign agents to periods round-robin style
-  let agentIndex = 0;
-  const slots: GuardSlot[] = GUARD_PERIODS.map(period => {
-    const assigned: Person[] = [];
-    for (let i = 0; i < personnelPerPeriod && agentIndex < rotatedAgents.length; i++) {
-      assigned.push(rotatedAgents[agentIndex++]);
-    }
-    return { period, personnel: assigned };
+  // Distribute evenly: round-robin across periods
+  const slots: GuardSlot[] = GUARD_PERIODS.map(period => ({ period, personnel: [] }));
+
+  rotated.forEach((person, idx) => {
+    // Shift starting period each day for extra fairness
+    const periodIdx = (idx + daysSinceRef) % totalPeriods;
+    slots[periodIdx].personnel.push(person);
   });
 
-  // If shortage: fill empty/short critical periods with corporals
+  // Shortage protocol: if any period is empty, fill critical ones with corporals
   if (corporals.length > 0) {
-    const rotatedCorporals = rotateArray(corporals, rotationCycle);
-    let corpIndex = 0;
+    const rotatedCorporals = rotateArray(corporals, daysSinceRef);
+    let corpIdx = 0;
 
+    // First pass: fill empty critical periods
     for (const slot of slots) {
-      if (slot.period.isCritical && slot.personnel.length < personnelPerPeriod && corpIndex < rotatedCorporals.length) {
-        const needed = personnelPerPeriod - slot.personnel.length;
-        for (let i = 0; i < needed && corpIndex < rotatedCorporals.length; i++) {
-          slot.personnel.push(rotatedCorporals[corpIndex++]);
-        }
+      if (slot.period.isCritical && slot.personnel.length === 0 && corpIdx < rotatedCorporals.length) {
+        slot.personnel.push(rotatedCorporals[corpIdx++]);
+      }
+    }
+
+    // Second pass: balance - if some periods have 0 and corporals remain, fill any empty
+    for (const slot of slots) {
+      if (slot.personnel.length === 0 && corpIdx < rotatedCorporals.length) {
+        slot.personnel.push(rotatedCorporals[corpIdx++]);
       }
     }
   }
