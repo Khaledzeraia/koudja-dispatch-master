@@ -8,6 +8,7 @@ import { PersonnelSection } from '@/components/koudja/PersonnelSection';
 import { PersonnelDialog } from '@/components/koudja/PersonnelDialog';
 import { DeleteConfirmDialog } from '@/components/koudja/DeleteConfirmDialog';
 import { GuardSchedule } from '@/components/koudja/GuardSchedule';
+import { GuardStats } from '@/components/koudja/GuardStats';
 import { Person, Rank, VehicleConfig, VehicleId, DEFAULT_VEHICLE_CONFIGS } from '@/lib/types';
 import { getDefaultPersonnel } from '@/lib/data';
 import { getPlatoonForDate, distribute, getReserve, formatForWhatsApp, generateGuardSchedule } from '@/lib/rotation';
@@ -235,6 +236,7 @@ const Index = () => {
 
         <TabsContent value="guard-schedule" className="flex-1 mt-0">
           <GuardSchedule slots={guardSchedule} />
+          <GuardStats date={selectedDate} personnel={personnel} vehicleConfigs={vehicleConfigs} />
         </TabsContent>
 
         <TabsContent value="personnel" className="flex-1 mt-0">
