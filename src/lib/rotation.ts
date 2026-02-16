@@ -151,7 +151,8 @@ export const GUARD_PERIODS: GuardPeriod[] = [
 export function generateGuardSchedule(
   date: Date,
   allPlatoonPersonnel: Person[],
-  assignedToVehicles: Set<string>
+  assignedToVehicles: Set<string>,
+  personnelPerPeriod: number[] = [1, 1, 1, 1, 1, 1]
 ): GuardSlot[] {
   const present = allPlatoonPersonnel.filter(p => p.isPresent);
   
@@ -160,12 +161,9 @@ export function generateGuardSchedule(
   }
 
   const daysSinceRef = Math.abs(differenceInCalendarDays(date, REFERENCE_DATE));
-  // 3-day rotation cycle determines WHO does guard duty
   const rotationCycle = Math.floor(daysSinceRef / 3);
-  // Day within cycle (0, 1, 2) shifts period assignments for variety
   const dayInCycle = daysSinceRef % 3;
 
-  // Separate agents and corporals (sorted by priority for consistency)
   const agents = present
     .filter(p => p.rank === 'agent')
     .sort((a, b) => a.priority - b.priority);
@@ -173,23 +171,39 @@ export function generateGuardSchedule(
     .filter(p => p.rank === 'corporal')
     .sort((a, b) => a.priority - b.priority);
 
-  // Rotate the agent list based on the 3-day cycle
-  // This ensures different agents get guard duty each cycle
   const rotatedAgents = rotateArray(agents, rotationCycle);
-
-  // Select agents for guard duty: those NOT assigned to vehicles
   const guardAgents = rotatedAgents.filter(p => !assignedToVehicles.has(p.id));
 
   const totalPeriods = GUARD_PERIODS.length;
   const slots: GuardSlot[] = GUARD_PERIODS.map(period => ({ period, personnel: [] }));
 
-  // Distribute guard agents evenly across periods with daily shift
-  guardAgents.forEach((person, idx) => {
-    const periodIdx = (idx + dayInCycle * 2) % totalPeriods;
-    slots[periodIdx].personnel.push(person);
-  });
+  // Distribute agents across periods respecting personnelPerPeriod caps
+  let agentIdx = 0;
+  // Use dayInCycle to shift starting period for daily variety
+  for (let round = 0; agentIdx < guardAgents.length; round++) {
+    let placed = false;
+    for (let i = 0; i < totalPeriods && agentIdx < guardAgents.length; i++) {
+      const periodIdx = (i + dayInCycle * 2) % totalPeriods;
+      const cap = personnelPerPeriod[periodIdx] || 1;
+      if (slots[periodIdx].personnel.length < cap + round) {
+        // In first round fill up to cap, then overflow evenly
+        if (slots[periodIdx].personnel.length < cap) {
+          slots[periodIdx].personnel.push(guardAgents[agentIdx++]);
+          placed = true;
+        }
+      }
+    }
+    // If no slot accepted in this round, overflow to any slot
+    if (!placed) {
+      for (let i = 0; i < totalPeriods && agentIdx < guardAgents.length; i++) {
+        const periodIdx = (i + dayInCycle * 2) % totalPeriods;
+        slots[periodIdx].personnel.push(guardAgents[agentIdx++]);
+        break;
+      }
+    }
+  }
 
-  // Shortage protocol: use corporals not assigned to vehicles
+  // Shortage protocol: use corporals for empty slots
   const availableCorporals = rotateArray(
     corporals.filter(p => !assignedToVehicles.has(p.id)),
     rotationCycle
@@ -197,15 +211,11 @@ export function generateGuardSchedule(
 
   if (availableCorporals.length > 0) {
     let corpIdx = 0;
-
-    // First: fill empty critical periods
     for (const slot of slots) {
       if (slot.period.isCritical && slot.personnel.length === 0 && corpIdx < availableCorporals.length) {
         slot.personnel.push(availableCorporals[corpIdx++]);
       }
     }
-
-    // Second: fill remaining empty periods
     for (const slot of slots) {
       if (slot.personnel.length === 0 && corpIdx < availableCorporals.length) {
         slot.personnel.push(availableCorporals[corpIdx++]);
