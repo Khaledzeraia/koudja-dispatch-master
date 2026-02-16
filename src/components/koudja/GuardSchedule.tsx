@@ -1,13 +1,15 @@
 import { GuardSlot } from '@/lib/rotation';
 import { RANK_LABELS, RANK_BADGE_STYLES } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Clock, AlertTriangle, Shield } from 'lucide-react';
+import { Clock, AlertTriangle, Shield, User, Users } from 'lucide-react';
 
 interface GuardScheduleProps {
   slots: GuardSlot[];
+  personnelPerPeriod: number[];
+  onPersonnelPerPeriodChange: (index: number, value: number) => void;
 }
 
-export function GuardSchedule({ slots }: GuardScheduleProps) {
+export function GuardSchedule({ slots, personnelPerPeriod, onPersonnelPerPeriodChange }: GuardScheduleProps) {
   const totalPersonnel = slots.reduce((sum, s) => sum + s.personnel.length, 0);
 
   return (
@@ -56,11 +58,29 @@ export function GuardSchedule({ slots }: GuardScheduleProps) {
                   {slot.period.label}
                 </span>
               </div>
-              {slot.period.isCritical && (
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30">
-                  فترة حرجة
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                {slot.period.isCritical && (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30">
+                    فترة حرجة
+                  </span>
+                )}
+                {/* Toggle 1 or 2 agents */}
+                <button
+                  onClick={() => onPersonnelPerPeriodChange(idx, personnelPerPeriod[idx] === 1 ? 2 : 1)}
+                  className={cn(
+                    'flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors',
+                    personnelPerPeriod[idx] === 2
+                      ? 'bg-primary/15 text-primary border-primary/30'
+                      : 'bg-secondary text-muted-foreground border-border'
+                  )}
+                >
+                  {personnelPerPeriod[idx] === 2 ? (
+                    <><Users className="h-3 w-3" /> عونين</>
+                  ) : (
+                    <><User className="h-3 w-3" /> عون</>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Assigned personnel */}
@@ -91,7 +111,7 @@ export function GuardSchedule({ slots }: GuardScheduleProps) {
       <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-1">
         <div className="flex items-center gap-1">
           <AlertTriangle className="h-3 w-3 text-accent" />
-          <span>فترة حرجة (عريف محتمل)</span>
+          <span>فترة حرجة</span>
         </div>
         <div className="flex items-center gap-1">
           <Shield className="h-3 w-3" />

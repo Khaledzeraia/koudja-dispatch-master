@@ -30,6 +30,9 @@ const Index = () => {
   const [vehicleConfigs, setVehicleConfigs] = useState<VehicleConfig[]>(() =>
     loadFromStorage('koudja-vehicles', () => DEFAULT_VEHICLE_CONFIGS)
   );
+  const [personnelPerPeriod, setPersonnelPerPeriod] = useState<number[]>(() =>
+    loadFromStorage('koudja-guard-counts', () => [1, 1, 1, 1, 1, 1])
+  );
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -45,6 +48,10 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('koudja-vehicles', JSON.stringify(vehicleConfigs));
   }, [vehicleConfigs]);
+
+  useEffect(() => {
+    localStorage.setItem('koudja-guard-counts', JSON.stringify(personnelPerPeriod));
+  }, [personnelPerPeriod]);
 
   // Computed values
   const currentPlatoon = useMemo(() => getPlatoonForDate(selectedDate), [selectedDate]);
@@ -70,9 +77,17 @@ const Index = () => {
     [platoonPersonnel, assignments]
   );
   const guardSchedule = useMemo(
-    () => generateGuardSchedule(selectedDate, platoonPersonnel, assignedToVehicles),
-    [selectedDate, platoonPersonnel, assignedToVehicles]
+    () => generateGuardSchedule(selectedDate, platoonPersonnel, assignedToVehicles, personnelPerPeriod),
+    [selectedDate, platoonPersonnel, assignedToVehicles, personnelPerPeriod]
   );
+
+  const handlePersonnelPerPeriodChange = useCallback((index: number, value: number) => {
+    setPersonnelPerPeriod(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  }, []);
 
   // Handlers
   const handleTogglePresence = useCallback((id: string) => {
@@ -235,7 +250,7 @@ const Index = () => {
         </TabsContent>
 
         <TabsContent value="guard-schedule" className="flex-1 mt-0">
-          <GuardSchedule slots={guardSchedule} />
+          <GuardSchedule slots={guardSchedule} personnelPerPeriod={personnelPerPeriod} onPersonnelPerPeriodChange={handlePersonnelPerPeriodChange} />
           <GuardStats date={selectedDate} personnel={personnel} vehicleConfigs={vehicleConfigs} />
         </TabsContent>
 
