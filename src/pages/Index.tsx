@@ -56,7 +56,12 @@ const Index = () => {
     [platoonPersonnel, vehicleConfigs, selectedDate]
   );
   const assignedToVehicles = useMemo(
-    () => new Set(Object.values(assignments).flat().map(p => p.id)),
+    () => {
+      // Only guard office and VL personnel are excluded from guard duty
+      const excludedVehicles: VehicleId[] = ['guard', 'vl'];
+      const excluded = excludedVehicles.flatMap(id => assignments[id] || []);
+      return new Set(excluded.map(p => p.id));
+    },
     [assignments]
   );
   const reserve = useMemo(
