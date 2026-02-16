@@ -216,11 +216,6 @@ export function generateGuardSchedule(
         slot.personnel.push(availableCorporals[corpIdx++]);
       }
     }
-    for (const slot of slots) {
-      if (slot.personnel.length === 0 && corpIdx < availableCorporals.length) {
-        slot.personnel.push(availableCorporals[corpIdx++]);
-      }
-    }
   }
 
   return slots;
