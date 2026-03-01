@@ -179,34 +179,19 @@ export function generateGuardSchedule(
   const totalPeriods = GUARD_PERIODS.length;
   const slots: GuardSlot[] = GUARD_PERIODS.map(period => ({ period, personnel: [] }));
 
-  // Distribute agents across periods respecting personnelPerPeriod caps
+  // Distribute agents evenly across periods, shifted by dayInCycle for daily variety
   let agentIdx = 0;
-  // Use dayInCycle to shift starting period for daily variety
-  for (let round = 0; agentIdx < guardAgents.length; round++) {
-    let placed = false;
-    for (let i = 0; i < totalPeriods && agentIdx < guardAgents.length; i++) {
-      const periodIdx = (i + dayInCycle * 2) % totalPeriods;
-      const cap = personnelPerPeriod[periodIdx] || 1;
-      if (slots[periodIdx].personnel.length < cap + round) {
-        // In first round fill up to cap, then overflow evenly
-        if (slots[periodIdx].personnel.length < cap) {
-          slots[periodIdx].personnel.push(guardAgents[agentIdx++]);
-          placed = true;
-        }
-      }
-    }
-    // If no slot accepted in this round, overflow to any slot
-    if (!placed) {
-      for (let i = 0; i < totalPeriods && agentIdx < guardAgents.length; i++) {
-        const periodIdx = (i + dayInCycle * 2) % totalPeriods;
-        slots[periodIdx].personnel.push(guardAgents[agentIdx++]);
-        break;
-      }
+  // Round 1: fill each period up to its cap
+  for (let i = 0; i < totalPeriods && agentIdx < guardAgents.length; i++) {
+    const periodIdx = (i + dayInCycle * 2) % totalPeriods;
+    const cap = personnelPerPeriod[periodIdx] || 1;
+    while (slots[periodIdx].personnel.length < cap && agentIdx < guardAgents.length) {
+      slots[periodIdx].personnel.push(guardAgents[agentIdx++]);
     }
   }
 
   // Shortage protocol: use corporals to fill unfilled periods
-  // Priority order: Period 1, Period 6, Period 2, Period 3, Period 4, Period 5
+  // Priority order: Period 1 → Period 6 → Period 2 → Period 3 → Period 4 → Period 5
   const corporalFillOrder = [0, 5, 1, 2, 3, 4];
   const freeCorporals = corporals.filter(p => !assignedToVehicles.has(p.id));
   const vehicleCorporals = corporals.filter(p => assignedToVehicles.has(p.id));
