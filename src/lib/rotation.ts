@@ -140,13 +140,13 @@ export const GUARD_PERIODS: GuardPeriod[] = [
 /**
  * Generates a fair guard duty schedule for the given date.
  * 
- * Rotation system (every 3 days):
- * 1. All present personnel are sorted by priority
- * 2. Every 3 days, the rotation cycle advances — shifting WHO is assigned to guard
- * 3. From the full platoon, a subset is selected for guard duty based on the cycle
- * 4. Selected guards are distributed evenly across 6 periods using round-robin
- * 5. Within the same 3-day cycle, period assignments shift daily for variety
- * 6. In shortage: corporals fill critical periods (08-10, 18-20) first
+ * Rules:
+ * 1. All 6 periods (08:00-20:00) must be covered
+ * 2. Agents are primary guard personnel (free agents first, then vehicle-assigned)
+ * 3. When agents are insufficient, corporals fill by priority order:
+ *    Period 1 → Period 6 → Period 2 → Period 3 → Period 4 → Period 5
+ * 4. Rotation cycle advances every 3 days for fairness
+ * 5. Within the same 3-day cycle, period assignments shift daily
  */
 export function generateGuardSchedule(
   date: Date,
@@ -172,7 +172,10 @@ export function generateGuardSchedule(
     .sort((a, b) => a.priority - b.priority);
 
   const rotatedAgents = rotateArray(agents, rotationCycle);
-  const guardAgents = rotatedAgents.filter(p => !assignedToVehicles.has(p.id));
+  // Free agents first, then vehicle-assigned agents as backup for full coverage
+  const freeAgents = rotatedAgents.filter(p => !assignedToVehicles.has(p.id));
+  const vehicleAgents = rotatedAgents.filter(p => assignedToVehicles.has(p.id));
+  const guardAgents = [...freeAgents, ...vehicleAgents];
 
   const totalPeriods = GUARD_PERIODS.length;
   const slots: GuardSlot[] = GUARD_PERIODS.map(period => ({ period, personnel: [] }));
@@ -203,17 +206,22 @@ export function generateGuardSchedule(
     }
   }
 
-  // Shortage protocol: use corporals for empty slots
+  // Shortage protocol: use corporals to fill unfilled periods
+  // Priority order: Period 1, Period 6, Period 2, Period 3, Period 4, Period 5
+  const corporalFillOrder = [0, 5, 1, 2, 3, 4];
+  const freeCorporals = corporals.filter(p => !assignedToVehicles.has(p.id));
+  const vehicleCorporals = corporals.filter(p => assignedToVehicles.has(p.id));
   const availableCorporals = rotateArray(
-    corporals.filter(p => !assignedToVehicles.has(p.id)),
+    [...freeCorporals, ...vehicleCorporals],
     rotationCycle
   );
 
   if (availableCorporals.length > 0) {
     let corpIdx = 0;
-    for (const slot of slots) {
-      if (slot.period.isCritical && slot.personnel.length === 0 && corpIdx < availableCorporals.length) {
-        slot.personnel.push(availableCorporals[corpIdx++]);
+    for (const periodIdx of corporalFillOrder) {
+      const cap = personnelPerPeriod[periodIdx] || 1;
+      while (slots[periodIdx].personnel.length < cap && corpIdx < availableCorporals.length) {
+        slots[periodIdx].personnel.push(availableCorporals[corpIdx++]);
       }
     }
   }
