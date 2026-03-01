@@ -120,7 +120,6 @@ export interface GuardPeriod {
   label: string;
   startHour: number;
   endHour: number;
-  isCritical: boolean;
 }
 
 export interface GuardSlot {
@@ -129,12 +128,12 @@ export interface GuardSlot {
 }
 
 export const GUARD_PERIODS: GuardPeriod[] = [
-  { label: '08:00 - 10:00', startHour: 8, endHour: 10, isCritical: true },
-  { label: '10:00 - 12:00', startHour: 10, endHour: 12, isCritical: false },
-  { label: '12:00 - 14:00', startHour: 12, endHour: 14, isCritical: false },
-  { label: '14:00 - 16:00', startHour: 14, endHour: 16, isCritical: false },
-  { label: '16:00 - 18:00', startHour: 16, endHour: 18, isCritical: false },
-  { label: '18:00 - 20:00', startHour: 18, endHour: 20, isCritical: true },
+  { label: '08:00 - 10:00', startHour: 8, endHour: 10 },
+  { label: '10:00 - 12:00', startHour: 10, endHour: 12 },
+  { label: '12:00 - 14:00', startHour: 12, endHour: 14 },
+  { label: '14:00 - 16:00', startHour: 14, endHour: 16 },
+  { label: '16:00 - 18:00', startHour: 16, endHour: 18 },
+  { label: '18:00 - 20:00', startHour: 18, endHour: 20 },
 ];
 
 /**
@@ -273,7 +272,7 @@ export function formatForWhatsApp(
     text += `🕐 جدول الحراسة الدورية:\n\n`;
     for (const slot of guardSchedule) {
       const names = slot.personnel.map(p => `${RANK_LABELS[p.rank]}: ${p.name}`).join(' / ');
-      const marker = slot.period.isCritical ? '⚠️' : '🟢';
+      const marker = '🟢';
       text += `${marker} ${slot.period.label} → ${names || 'لا أحد'}\n`;
     }
     text += '\n';
