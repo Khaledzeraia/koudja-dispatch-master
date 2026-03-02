@@ -177,35 +177,39 @@ export function generateGuardSchedule(
   const totalNeeded = personnelPerPeriod.reduce((sum, n) => sum + n, 0);
   const shortage = Math.max(0, totalNeeded - rotatedAgents.length);
 
-  // Distribute agents across periods, shifted by dayInCycle for daily variety
-  let agentIdx = 0;
-  for (let i = 0; i < totalPeriods && agentIdx < rotatedAgents.length; i++) {
-    const periodIdx = (i + dayInCycle * 2) % totalPeriods;
-    const cap = personnelPerPeriod[periodIdx] || 1;
-    while (slots[periodIdx].personnel.length < cap && agentIdx < rotatedAgents.length) {
-      slots[periodIdx].personnel.push(rotatedAgents[agentIdx++]);
-    }
-  }
+  // Corporal fill priority: Period 1 → 6 → 2 → 3 → 4 → 5
+  const corporalFillOrder = [0, 5, 1, 2, 3, 4];
 
-  // Shortage protocol: corporals fill ONLY the exact shortage count
-  // Priority: Period 1 (08-10) → Period 6 (18-20) → Period 2 → Period 3 → Period 4 → Period 5
+  // Step 1: Reserve periods for corporals when there's a shortage
+  // Corporals ALWAYS go to their designated periods (08-10 first, then 18-20, etc.)
+  const corporalPeriods = new Set<number>();
   if (shortage > 0) {
     const corporals = present
       .filter(p => p.rank === 'corporal')
       .sort((a, b) => a.priority - b.priority);
     const rotatedCorporals = rotateArray(corporals, rotationCycle);
 
-    const corporalFillOrder = [0, 5, 1, 2, 3, 4];
     let corpIdx = 0;
     let filled = 0;
-
     for (const periodIdx of corporalFillOrder) {
       if (filled >= shortage || corpIdx >= rotatedCorporals.length) break;
       const cap = personnelPerPeriod[periodIdx] || 1;
       while (slots[periodIdx].personnel.length < cap && corpIdx < rotatedCorporals.length && filled < shortage) {
         slots[periodIdx].personnel.push(rotatedCorporals[corpIdx++]);
+        corporalPeriods.add(periodIdx);
         filled++;
       }
+    }
+  }
+
+  // Step 2: Distribute agents to remaining periods (skip corporal-reserved ones)
+  let agentIdx = 0;
+  for (let i = 0; i < totalPeriods && agentIdx < rotatedAgents.length; i++) {
+    const periodIdx = (i + dayInCycle * 2) % totalPeriods;
+    if (corporalPeriods.has(periodIdx)) continue; // skip corporal-covered periods
+    const cap = personnelPerPeriod[periodIdx] || 1;
+    while (slots[periodIdx].personnel.length < cap && agentIdx < rotatedAgents.length) {
+      slots[periodIdx].personnel.push(rotatedAgents[agentIdx++]);
     }
   }
 
