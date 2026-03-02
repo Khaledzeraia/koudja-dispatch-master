@@ -150,7 +150,7 @@ export const GUARD_PERIODS: GuardPeriod[] = [
 export function generateGuardSchedule(
   date: Date,
   allPlatoonPersonnel: Person[],
-  assignedToVehicles: Set<string>,
+  _assignedToVehicles?: Set<string>,
   personnelPerPeriod: number[] = [1, 1, 1, 1, 1, 1]
 ): GuardSlot[] {
   const present = allPlatoonPersonnel.filter(p => p.isPresent);
@@ -163,49 +163,48 @@ export function generateGuardSchedule(
   const rotationCycle = Math.floor(daysSinceRef / 3);
   const dayInCycle = daysSinceRef % 3;
 
+  // Guard schedule is INDEPENDENT from vehicle assignments
+  // All present agents participate in guard duty
   const agents = present
     .filter(p => p.rank === 'agent')
     .sort((a, b) => a.priority - b.priority);
-  const corporals = present
-    .filter(p => p.rank === 'corporal')
-    .sort((a, b) => a.priority - b.priority);
 
   const rotatedAgents = rotateArray(agents, rotationCycle);
-  // Free agents first, then vehicle-assigned agents as backup for full coverage
-  const freeAgents = rotatedAgents.filter(p => !assignedToVehicles.has(p.id));
-  const vehicleAgents = rotatedAgents.filter(p => assignedToVehicles.has(p.id));
-  const guardAgents = [...freeAgents, ...vehicleAgents];
-
   const totalPeriods = GUARD_PERIODS.length;
   const slots: GuardSlot[] = GUARD_PERIODS.map(period => ({ period, personnel: [] }));
 
-  // Distribute agents evenly across periods, shifted by dayInCycle for daily variety
+  // Calculate total personnel needed across all periods
+  const totalNeeded = personnelPerPeriod.reduce((sum, n) => sum + n, 0);
+  const shortage = Math.max(0, totalNeeded - rotatedAgents.length);
+
+  // Distribute agents across periods, shifted by dayInCycle for daily variety
   let agentIdx = 0;
-  // Round 1: fill each period up to its cap
-  for (let i = 0; i < totalPeriods && agentIdx < guardAgents.length; i++) {
+  for (let i = 0; i < totalPeriods && agentIdx < rotatedAgents.length; i++) {
     const periodIdx = (i + dayInCycle * 2) % totalPeriods;
     const cap = personnelPerPeriod[periodIdx] || 1;
-    while (slots[periodIdx].personnel.length < cap && agentIdx < guardAgents.length) {
-      slots[periodIdx].personnel.push(guardAgents[agentIdx++]);
+    while (slots[periodIdx].personnel.length < cap && agentIdx < rotatedAgents.length) {
+      slots[periodIdx].personnel.push(rotatedAgents[agentIdx++]);
     }
   }
 
-  // Shortage protocol: use corporals to fill unfilled periods
-  // Priority order: Period 1 → Period 6 → Period 2 → Period 3 → Period 4 → Period 5
-  const corporalFillOrder = [0, 5, 1, 2, 3, 4];
-  const freeCorporals = corporals.filter(p => !assignedToVehicles.has(p.id));
-  const vehicleCorporals = corporals.filter(p => assignedToVehicles.has(p.id));
-  const availableCorporals = rotateArray(
-    [...freeCorporals, ...vehicleCorporals],
-    rotationCycle
-  );
+  // Shortage protocol: corporals fill ONLY the exact shortage count
+  // Priority: Period 1 (08-10) → Period 6 (18-20) → Period 2 → Period 3 → Period 4 → Period 5
+  if (shortage > 0) {
+    const corporals = present
+      .filter(p => p.rank === 'corporal')
+      .sort((a, b) => a.priority - b.priority);
+    const rotatedCorporals = rotateArray(corporals, rotationCycle);
 
-  if (availableCorporals.length > 0) {
+    const corporalFillOrder = [0, 5, 1, 2, 3, 4];
     let corpIdx = 0;
+    let filled = 0;
+
     for (const periodIdx of corporalFillOrder) {
+      if (filled >= shortage || corpIdx >= rotatedCorporals.length) break;
       const cap = personnelPerPeriod[periodIdx] || 1;
-      while (slots[periodIdx].personnel.length < cap && corpIdx < availableCorporals.length) {
-        slots[periodIdx].personnel.push(availableCorporals[corpIdx++]);
+      while (slots[periodIdx].personnel.length < cap && corpIdx < rotatedCorporals.length && filled < shortage) {
+        slots[periodIdx].personnel.push(rotatedCorporals[corpIdx++]);
+        filled++;
       }
     }
   }
