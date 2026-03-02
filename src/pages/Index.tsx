@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Share2, LayoutGrid, Users, Clock } from 'lucide-react';
+import { ExportImage } from '@/components/koudja/ExportImage';
 import { DateNavigation } from '@/components/koudja/DateNavigation';
 import { DistributionBoard } from '@/components/koudja/DistributionBoard';
 import { PersonnelSection } from '@/components/koudja/PersonnelSection';
@@ -200,14 +201,24 @@ const Index = () => {
         <h1 className="text-lg font-black tracking-wider text-primary">
           KOUDJA
         </h1>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-muted-foreground hover:text-primary"
-          onClick={handleWhatsAppShare}
-        >
-          <Share2 className="h-4.5 w-4.5" />
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <ExportImage
+            date={selectedDate}
+            platoon={currentPlatoon}
+            assignments={assignments}
+            vehicleConfigs={vehicleConfigs}
+            reserve={reserve}
+            guardSchedule={guardSchedule}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-primary"
+            onClick={handleWhatsAppShare}
+          >
+            <Share2 className="h-4.5 w-4.5" />
+          </Button>
+        </div>
       </header>
 
       {/* Date Navigation */}
