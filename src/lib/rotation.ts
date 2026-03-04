@@ -150,7 +150,7 @@ export const GUARD_PERIODS: GuardPeriod[] = [
 export function generateGuardSchedule(
   date: Date,
   allPlatoonPersonnel: Person[],
-  _assignedToVehicles?: Set<string>,
+  assignments?: Record<VehicleId, Person[]>,
   personnelPerPeriod: number[] = [1, 1, 1, 1, 1, 1]
 ): GuardSlot[] {
   const present = allPlatoonPersonnel.filter(p => p.isPresent);
@@ -181,11 +181,16 @@ export function generateGuardSchedule(
   const corporalFillOrder = [0, 5, 1, 2, 3, 4];
 
   // Step 1: Reserve periods for corporals when there's a shortage
-  // Corporals ALWAYS go to their designated periods (08-10 first, then 18-20, etc.)
+  // Only corporals assigned to TRUCKS (ps, ccfm, cci) can do guard duty, NOT ambulance corporals
   const corporalPeriods = new Set<number>();
   if (shortage > 0) {
+    const truckIds: VehicleId[] = ['ps', 'ccfm', 'cci'];
+    const truckCorporalIds = assignments
+      ? new Set(truckIds.flatMap(id => (assignments[id] || []).filter(p => p.rank === 'corporal').map(p => p.id)))
+      : new Set<string>();
+
     const corporals = present
-      .filter(p => p.rank === 'corporal')
+      .filter(p => p.rank === 'corporal' && (assignments ? truckCorporalIds.has(p.id) : true))
       .sort((a, b) => a.priority - b.priority);
     const rotatedCorporals = rotateArray(corporals, rotationCycle);
 
