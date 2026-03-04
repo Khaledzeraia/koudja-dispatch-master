@@ -34,10 +34,7 @@ export function getMonthlyGuardStats(
     if (getPlatoonForDate(day) !== targetPlatoon) continue;
 
     const assignments = distribute(platoonPersonnel, vehicleConfigs, day);
-    const excluded = new Set(
-      excludedVehicles.flatMap(id => (assignments[id] || []).map(p => p.id))
-    );
-    const schedule = generateGuardSchedule(day, platoonPersonnel, excluded);
+    const schedule = generateGuardSchedule(day, platoonPersonnel, assignments);
 
     for (const slot of schedule) {
       for (const p of slot.personnel) {

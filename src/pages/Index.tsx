@@ -78,8 +78,8 @@ const Index = () => {
     [platoonPersonnel, assignments]
   );
   const guardSchedule = useMemo(
-    () => generateGuardSchedule(selectedDate, platoonPersonnel, assignedToVehicles, personnelPerPeriod),
-    [selectedDate, platoonPersonnel, assignedToVehicles, personnelPerPeriod]
+    () => generateGuardSchedule(selectedDate, platoonPersonnel, assignments, personnelPerPeriod),
+    [selectedDate, platoonPersonnel, assignments, personnelPerPeriod]
   );
 
   const handlePersonnelPerPeriodChange = useCallback((index: number, value: number) => {
